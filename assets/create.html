@@ -1,0 +1,20 @@
+{% extends "admin/challenges/create.html" %}
+
+{% block header %}
+<div class="alert alert-secondary" role="alert">
+	First Blood challenges give a bonus to first N people who solve the challenge<br>
+	<a href="https://github.com/krzys-h/CTFd_first_blood">https://github.com/krzys-h/CTFd_first_blood</a>
+</div>
+{% endblock %}
+
+
+{% block value %}
+{{ super() }}
+
+<div class="bonus-points">
+</div>
+{% endblock %}
+
+{% block type %}
+<input type="hidden" value="firstblood" name="type" id="chaltype">
+{% endblock %}

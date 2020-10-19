@@ -1,0 +1,18 @@
+{% extends "admin/challenges/update.html" %}
+
+{% block value %}
+{{ super() }}
+
+<div class="bonus-points">
+	{% for _ in challenge.first_blood_bonus %}
+	<div class="form-group bonus-points-val" data-index="{{ loop.index0 }}">
+		<label for="value">Bonus points for {{ (loop.index0 + 1)|ordinalize }} solve<br>
+			<small class="form-text text-muted">
+				The award for the {{ (loop.index0 + 1)|ordinalize }} team to solve the challenge
+			</small>
+		</label>
+		<input type="number" class="form-control" name="first_blood_bonus[{{ loop.index0 }}]" value="{{ challenge.first_blood_bonus[loop.index0] }}">
+	</div>
+	{% endfor %}
+</div>
+{% endblock %}
