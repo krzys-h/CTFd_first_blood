@@ -3,6 +3,7 @@ import itertools
 from flask import Blueprint
 from sqlalchemy import event
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import get_history
 
 from CTFd.models import Challenges, Solves, Awards, db
 from CTFd.plugins import register_plugin_assets_directory
@@ -115,10 +116,25 @@ class FirstBloodValueChallenge(BaseChallenge):
         super().delete(challenge)
     
     @classmethod
+    def _can_get_award(cls, challenge, solve):
+        # No awards for hidden challenges
+        if challenge.state != 'visible':
+            return False
+
+        # No awards for hidden users
+        Model = get_model()
+        solver = Model.query.filter_by(id=solve.account_id).first()
+        if solver.hidden or solver.banned:
+            return False
+        
+        return True
+    
+    @classmethod
     def _gen_award_data(cls, challenge, solve, solve_num):
         award_points = challenge.first_blood_bonus[solve_num - 1] if (solve_num - 1) < len(challenge.first_blood_bonus) else None
         if award_points is None:
             return None
+
         return {
             'user_id': solve.user.id if solve.user is not None else None,
             'team_id': solve.team.id if solve.team is not None else None,
@@ -142,27 +158,28 @@ class FirstBloodValueChallenge(BaseChallenge):
         if team is not None:
             solve = solve.filter(Solves.team_id == team.id)
         solve = solve.first()
-
-        # Figure out the solve number
-        Model = get_model()
-
-        solve_count = (
-            Solves.query.join(Model, Solves.account_id == Model.id)
-            .filter(
-                Solves.id <= solve.id,
-                Solves.challenge_id == challenge.id,
-                Model.hidden == False,
-                Model.banned == False,
-            )
-            .count()
-        )
         
-        # Insert the award into the database
-        award_data = FirstBloodValueChallenge._gen_award_data(challenge, solve, solve_count)
-        if award_data is not None:
-            award = FirstBloodAward(**award_data)
-            db.session.add(award)
-            db.session.commit()
+        if FirstBloodValueChallenge._can_get_award(challenge, solve):
+            # Figure out the solve number
+            Model = get_model()
+
+            solve_count = (
+                Solves.query.join(Model, Solves.account_id == Model.id)
+                .filter(
+                    Solves.id <= solve.id,
+                    Solves.challenge_id == challenge.id,
+                    Model.hidden == False,
+                    Model.banned == False,
+                )
+                .count()
+            )
+            
+            # Insert the award into the database
+            award_data = FirstBloodValueChallenge._gen_award_data(challenge, solve, solve_count)
+            if award_data is not None:
+                award = FirstBloodAward(**award_data)
+                db.session.add(award)
+                db.session.commit()
 
     @classmethod
     def recalculate_awards(cls, challenge):
@@ -174,17 +191,20 @@ class FirstBloodValueChallenge(BaseChallenge):
         
         solves = (
             Solves.query.join(Model, Solves.account_id == Model.id)
-            .filter(
-                Solves.challenge_id == challenge.id,
-                Model.hidden == False,
-                Model.banned == False,
-            )
+            .filter(Solves.challenge_id == challenge.id)
             .all()
         )
 
-        for i, solve in enumerate(solves):
+        i = 0
+        for solve in solves:
             award = FirstBloodAward.query.filter(FirstBloodAward.solve_id == solve.id).first()
-            award_data = FirstBloodValueChallenge._gen_award_data(challenge, solve, i + 1)
+
+            if FirstBloodValueChallenge._can_get_award(challenge, solve):
+                award_data = FirstBloodValueChallenge._gen_award_data(challenge, solve, i + 1)
+                i += 1
+            else:
+                award_data = None
+
             if award_data is not None:
                 if award is not None:
                     for k,v in award_data.items():
@@ -209,6 +229,8 @@ def after_bulk_delete(delete_context):
 
 @event.listens_for(Session, "before_flush")
 def before_flush(session, flush_context, instances):
+    Model = get_model()
+
     for instance in session.deleted:
         if isinstance(instance, Solves):
             # A solve has been deleted - delete any awards associated with this solve
@@ -219,6 +241,16 @@ def before_flush(session, flush_context, instances):
                 if not hasattr(session, 'requires_award_recalculation'):
                     session.requires_award_recalculation = set()
                 session.requires_award_recalculation.add(Challenges.query.get(instance.challenge_id))
+
+    for instance in session.dirty:
+        if session.is_modified(instance):
+            if isinstance(instance, Model):
+                if get_history(instance, "hidden").has_changes() or get_history(instance, "banned").has_changes():
+                    # The user/team hidden state has changed - update awards on all challenges this user has solved
+                    for solve in Solves.query.join(Challenges, Solves.challenge_id == Challenges.id).filter(Solves.account_id == instance.id, Challenges.type == "firstblood"):
+                        if not hasattr(session, 'requires_award_recalculation'):
+                            session.requires_award_recalculation = set()
+                        session.requires_award_recalculation.add(solve.challenge)
 
 @event.listens_for(Session, "after_flush_postexec")
 def after_flush_postexec(session, flush_context):
