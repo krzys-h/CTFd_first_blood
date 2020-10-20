@@ -101,10 +101,28 @@ class FirstBloodValueChallenge(BaseChallenge):
         db.session.commit()
         FirstBloodValueChallenge.recalculate_awards(challenge)
         return challenge
+    
+    @classmethod
+    def _gen_award_data(cls, challenge, solve, solve_num):
+        award_points = challenge.first_blood_bonus[solve_num - 1] if (solve_num - 1) < len(challenge.first_blood_bonus) else None
+        if award_points is None:
+            return None
+        return {
+            'user_id': solve.user.id if solve.user is not None else None,
+            'team_id': solve.team.id if solve.team is not None else None,
+            'name': '{0} blood for {1}'.format(ordinalize(solve_num), challenge.name),
+            'description': 'Bonus points for being the {0} to solve the challenge'.format(ordinalize(solve_num)),
+            'category': 'First Blood',
+            'value': award_points,
+            'solve_id': solve.id,
+            'solve_num': solve_num,
+        }
 
     @classmethod
     def solve(cls, user, team, challenge, request):
         super().solve(user, team, challenge, request)
+        
+        # Get the Solve object that was just inserted by solve() (that method should really return it :<)
         solve = Solves.query.filter(Solves.challenge_id == challenge.id)
         if user is not None:
             solve = solve.filter(Solves.user_id == user.id)
@@ -112,7 +130,7 @@ class FirstBloodValueChallenge(BaseChallenge):
             solve = solve.filter(Solves.team_id == team.id)
         solve = solve.first()
 
-
+        # Figure out the solve number
         Model = get_model()
 
         solve_count = (
@@ -126,25 +144,42 @@ class FirstBloodValueChallenge(BaseChallenge):
             .count()
         )
         
-        award_points = challenge.first_blood_bonus[solve_count - 1] if (solve_count - 1) < len(challenge.first_blood_bonus) else None
-        if award_points is not None:
-            award = FirstBloodAward(
-                user_id=user.id if user is not None else None,
-                team_id=team.id if team is not None else None,
-                name='{0} blood for {1}'.format(ordinalize(solve_count), challenge.name),
-                description='Bonus points for being the {0} to solve the challenge'.format(ordinalize(solve_count)),
-                category='First Blood',
-                value=award_points,
-                solve_id=solve.id,
-                solve_num=solve_count,
-            )
+        # Insert the award into the database
+        award_data = FirstBloodValueChallenge._gen_award_data(challenge, solve, solve_count)
+        if award_data is not None:
+            award = FirstBloodAward(**award_data)
             db.session.add(award)
             db.session.commit()
 
     @classmethod
     def recalculate_awards(cls, challenge):
-        # TODO: The rewards should be recalculated whenever a solve is removed or points settings are changed
-        pass
+        """Recalculate all of the awards after challenge has been edited or solves/users were removed"""
+        Model = get_model()
+        
+        solves = (
+            Solves.query.join(Model, Solves.account_id == Model.id)
+            .filter(
+                Solves.challenge_id == challenge.id,
+                Model.hidden == False,
+                Model.banned == False,
+            )
+            .all()
+        )
+
+        for i, solve in enumerate(solves):
+            award = FirstBloodAward.query.filter(FirstBloodAward.solve_id == solve.id).first()
+            award_data = FirstBloodValueChallenge._gen_award_data(challenge, solve, i + 1)
+            if award_data is not None:
+                if award is not None:
+                    for k,v in award_data.items():
+                        setattr(award, k, v)
+                else:
+                    award = FirstBloodAward(**award_data)
+                    db.session.add(award)
+            else:
+                if award:
+                    db.session.delete(award)
+        db.session.commit()
 
 
 def load(app):
