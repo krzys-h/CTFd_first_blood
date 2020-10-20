@@ -197,6 +197,16 @@ class FirstBloodValueChallenge(BaseChallenge):
                     db.session.delete(award)
 
 
+@event.listens_for(Session, "after_bulk_delete")
+def after_bulk_delete(delete_context):
+    if delete_context.primary_table.name == "solves":
+        # A batch delete of solves just occured
+        # This usually means that CTFd is removing a user account
+        # Mark ALL first blood challenges for recalculation
+        # TODO: It would probably be better to detect which solves got removed and which challenges are affected - but before_bulk_delete doesn't seem to be a thing and the rows are already removed by now
+        for challenge in Challenges.query.filter_by(type="firstblood").all():
+            FirstBloodValueChallenge.recalculate_awards(challenge)
+
 @event.listens_for(Session, "before_flush")
 def before_flush(session, flush_context, instances):
     for instance in session.deleted:
