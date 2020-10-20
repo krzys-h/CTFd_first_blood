@@ -1,6 +1,8 @@
 import itertools
 
 from flask import Blueprint
+from sqlalchemy import event
+from sqlalchemy.orm import Session
 
 from CTFd.models import Challenges, Solves, Awards, db
 from CTFd.plugins import register_plugin_assets_directory
@@ -96,8 +98,8 @@ class FirstBloodValueChallenge(BaseChallenge):
                 first_blood_bonus.pop()
             setattr(challenge, 'first_blood_bonus', first_blood_bonus)
 
-        db.session.commit()
         FirstBloodValueChallenge.recalculate_awards(challenge)
+        db.session.commit()
         return challenge
 
     @classmethod
@@ -164,7 +166,10 @@ class FirstBloodValueChallenge(BaseChallenge):
 
     @classmethod
     def recalculate_awards(cls, challenge):
-        """Recalculate all of the awards after challenge has been edited or solves/users were removed"""
+        """
+        Recalculate all of the awards after challenge has been edited or solves/users were removed
+        You have to call db.session.commit() manually after this!
+        """
         Model = get_model()
         
         solves = (
@@ -190,8 +195,28 @@ class FirstBloodValueChallenge(BaseChallenge):
             else:
                 if award:
                     db.session.delete(award)
-        db.session.commit()
 
+
+@event.listens_for(Session, "before_flush")
+def before_flush(session, flush_context, instances):
+    for instance in session.deleted:
+        if isinstance(instance, Solves):
+            # A solve has been deleted - delete any awards associated with this solve
+            award_ids = FirstBloodAward.query.with_entities(FirstBloodAward.id).filter(FirstBloodAward.solve_id == instance.id).subquery()
+            rowcount = Awards.query.filter(Awards.id.in_(award_ids)).delete(synchronize_session='fetch')
+            if rowcount > 0:
+                # Mark the awards for this challenge for recalculation
+                if not hasattr(session, 'requires_award_recalculation'):
+                    session.requires_award_recalculation = set()
+                session.requires_award_recalculation.add(Challenges.query.get(instance.challenge_id))
+
+@event.listens_for(Session, "after_flush_postexec")
+def after_flush_postexec(session, flush_context):
+    if hasattr(session, 'requires_award_recalculation') and session.requires_award_recalculation:
+        # Recalculate any challenges whose awards were invalidated by this commit
+        for challenge in session.requires_award_recalculation:
+            FirstBloodValueChallenge.recalculate_awards(challenge)
+        del session.requires_award_recalculation
 
 def load(app):
     app.db.create_all()
