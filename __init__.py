@@ -71,6 +71,18 @@ class FirstBloodValueChallenge(BaseChallenge):
         static_folder="assets",
     )
     challenge_model = FirstBloodChallenge
+    
+    
+    @classmethod
+    def read(cls, challenge):
+        """
+        This method is in used to access the data of a challenge in a format processable by the front end.
+        :param challenge:
+        :return: Challenge object, data dictionary to be returned to the user
+        """
+        data = super().read(challenge)
+        data['first_blood_bonus'] = challenge.first_blood_bonus
+        return data
 
     @classmethod
     def update(cls, challenge, request):
