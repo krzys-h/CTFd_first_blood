@@ -1,8 +1,6 @@
 import itertools
 
 from flask import Blueprint
-from sqlalchemy import event
-from sqlalchemy.schema import DDL
 
 from CTFd.models import Challenges, Solves, Awards, db
 from CTFd.plugins import register_plugin_assets_directory
@@ -42,7 +40,7 @@ class FirstBloodAward(Awards):
     id = db.Column(
         db.Integer, db.ForeignKey("awards.id", ondelete="CASCADE"), primary_key=True
     )
-    solve_id = db.Column(db.Integer, db.ForeignKey("solves.id", ondelete="RESTRICT"))  # TODO: I got tired of trying to get removes to work for now
+    solve_id = db.Column(db.Integer, db.ForeignKey("solves.id", ondelete="RESTRICT"))  # It doesn't seem possible to do this well on the database level (FirstBloodAward always gets removed without the base Awards entry), so we do it on the application level
     solve_num = db.Column(db.Integer, nullable=False)
 
 class FirstBloodValueChallenge(BaseChallenge):
@@ -101,6 +99,18 @@ class FirstBloodValueChallenge(BaseChallenge):
         db.session.commit()
         FirstBloodValueChallenge.recalculate_awards(challenge)
         return challenge
+
+    @classmethod
+    def delete(cls, challenge):
+        """
+        This method is used to delete the resources used by a challenge.
+        :param challenge:
+        :return:
+        """
+        solve_ids = Solves.query.with_entities(Solves.id).filter_by(challenge_id=challenge.id).subquery()
+        award_ids = FirstBloodAward.query.with_entities(FirstBloodAward.id).filter(FirstBloodAward.solve_id.in_(solve_ids)).subquery()
+        Awards.query.filter(Awards.id.in_(award_ids)).delete(synchronize_session='fetch')
+        super().delete(challenge)
     
     @classmethod
     def _gen_award_data(cls, challenge, solve, solve_num):
