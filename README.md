@@ -10,5 +10,4 @@ Clone this repo to `CTFd/plugins/CTFd_first_blood` in your CTFd installation dir
 Tested with CTFd 3.1.1.
 
 ## TODO
-* Support teams
 * Display who got the bonus on the challenge solves screen

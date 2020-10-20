@@ -5,7 +5,7 @@ from sqlalchemy import event
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import get_history
 
-from CTFd.models import Challenges, Solves, Awards, db
+from CTFd.models import Challenges, Solves, Awards, Users, Teams, db
 from CTFd.plugins import register_plugin_assets_directory
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
 from CTFd.utils.modes import get_model
@@ -45,6 +45,8 @@ class FirstBloodAward(Awards):
     )
     solve_id = db.Column(db.Integer, db.ForeignKey("solves.id", ondelete="RESTRICT"))  # It doesn't seem possible to do this well on the database level (FirstBloodAward always gets removed without the base Awards entry), so we do it on the application level
     solve_num = db.Column(db.Integer, nullable=False)
+    
+    solve = db.relationship("Solves", foreign_keys="FirstBloodAward.solve_id", lazy="select")
 
 class FirstBloodValueChallenge(BaseChallenge):
     id = "firstblood"  # Unique identifier used to register challenges
@@ -222,6 +224,8 @@ def after_bulk_delete(delete_context):
     if delete_context.primary_table.name == "solves":
         # A batch delete of solves just occured
         # This usually means that CTFd is removing a user account
+        # Why do they do this differently for users and teams? No idea ¯\_(ツ)_/¯
+        
         # Mark ALL first blood challenges for recalculation
         # TODO: It would probably be better to detect which solves got removed and which challenges are affected - but before_bulk_delete doesn't seem to be a thing and the rows are already removed by now
         for challenge in Challenges.query.filter_by(type="firstblood").all():
@@ -241,6 +245,21 @@ def before_flush(session, flush_context, instances):
                 if not hasattr(session, 'requires_award_recalculation'):
                     session.requires_award_recalculation = set()
                 session.requires_award_recalculation.add(Challenges.query.get(instance.challenge_id))
+        if isinstance(instance, Users):
+            # A user has been deleted - mark all challenges where this user had awards for recalculation
+            # NOTE: This doesn't seem to be used by CTFd - see after_bulk_delete
+            for award in FirstBloodAward.query.join(Users, FirstBloodAward.user_id == Users.id).filter(Users.id == instance.id).all():
+                if not hasattr(session, 'requires_award_recalculation'):
+                    session.requires_award_recalculation = set()
+                session.requires_award_recalculation.add(award.solve.challenge)
+                session.delete(award)
+        if isinstance(instance, Teams):
+            # A team has been deleted - mark all challenges where this team had awards for recalculation
+            for award in FirstBloodAward.query.join(Teams, FirstBloodAward.team_id == Teams.id).filter(Teams.id == instance.id).all():
+                if not hasattr(session, 'requires_award_recalculation'):
+                    session.requires_award_recalculation = set()
+                session.requires_award_recalculation.add(award.solve.challenge)
+                session.delete(award)
 
     for instance in session.dirty:
         if session.is_modified(instance):
