@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import pytest
+from freezegun import freeze_time
 
 from CTFd.models import Challenges, Solves, Awards, Users, db
 from CTFd.plugins.CTFd_first_blood import FirstBloodChallenge, FirstBloodAward, FirstBloodValueChallenge
@@ -44,6 +45,7 @@ def _check_first_blood_awards_data(challenge, expected_data):
                 assert award.name == "{0} blood for {1}".format(expected['bonus_name'], challenge.name)
                 assert award.value == expected['bonus_points']
                 assert award.solve_num == expected['bonus_num']
+                assert award.date == solve.date
 
 def test_can_create_firstblood_challenge():
     """Test that firstblood challenges can be made from the API/admin panel"""
@@ -183,12 +185,13 @@ def test_solve_generates_awards():
         assert challenge.first_blood_bonus[1] == 20
         assert challenge.first_blood_bonus[2] == 10
 
-        for user in ["user1", "user2", "user3", "user4"]:
-            client = login_as_user(app, name=user, password="password")
-            with client.session_transaction():
-                data = {"submission": "flag", "challenge_id": challenge.id}
-                r = client.post("/api/v1/challenges/attempt", json=data)
-                assert r.status_code == 200
+        for day, user in enumerate(["user1", "user2", "user3", "user4"], start=10):
+            with freeze_time("2020-10-%02d 12:34:56" % day):
+                client = login_as_user(app, name=user, password="password")
+                with client.session_transaction():
+                    data = {"submission": "flag", "challenge_id": challenge.id}
+                    r = client.post("/api/v1/challenges/attempt", json=data)
+                    assert r.status_code == 200
         
         expected_data = [
             {"user": "user1", "solved": True, "bonus_points": 30, "bonus_num": 1, "bonus_name": "1st"},
@@ -283,12 +286,13 @@ def test_awards_removed_on_challenge_removed():
         assert challenge.first_blood_bonus[1] == 20
         assert challenge.first_blood_bonus[2] == 10
         
-        for user in ["user1", "user2", "user3", "user4"]:
-            client = login_as_user(app, name=user, password="password")
-            with client.session_transaction():
-                data = {"submission": "flag", "challenge_id": challenge.id}
-                r = client.post("/api/v1/challenges/attempt", json=data)
-                assert r.status_code == 200
+        for day, user in enumerate(["user1", "user2", "user3", "user4"], start=10):
+            with freeze_time("2020-10-%02d 12:34:56" % day):
+                client = login_as_user(app, name=user, password="password")
+                with client.session_transaction():
+                    data = {"submission": "flag", "challenge_id": challenge.id}
+                    r = client.post("/api/v1/challenges/attempt", json=data)
+                    assert r.status_code == 200
         
         assert Solves.query.count() == 4
         assert Awards.query.count() == 3
@@ -330,12 +334,13 @@ def test_awards_recalculated_on_solve_removed():
         assert challenge.first_blood_bonus[1] == 20
         assert challenge.first_blood_bonus[2] == 10
         
-        for user in ["user1", "user2", "user3", "user4", "user5"]:
-            client = login_as_user(app, name=user, password="password")
-            with client.session_transaction():
-                data = {"submission": "flag", "challenge_id": challenge.id}
-                r = client.post("/api/v1/challenges/attempt", json=data)
-                assert r.status_code == 200
+        for day, user in enumerate(["user1", "user2", "user3", "user4", "user5"], start=10):
+            with freeze_time("2020-10-%02d 12:34:56" % day):
+                client = login_as_user(app, name=user, password="password")
+                with client.session_transaction():
+                    data = {"submission": "flag", "challenge_id": challenge.id}
+                    r = client.post("/api/v1/challenges/attempt", json=data)
+                    assert r.status_code == 200
         
         expected_data = [
             {"user": "user1", "solved": True, "bonus_points": 30, "bonus_num": 1, "bonus_name": "1st"},
@@ -401,12 +406,13 @@ def test_awards_recalculated_on_user_hidden():
         assert challenge.first_blood_bonus[1] == 20
         assert challenge.first_blood_bonus[2] == 10
         
-        for user in ["user1", "user2", "user3", "user4", "user5"]:
-            client = login_as_user(app, name=user, password="password")
-            with client.session_transaction():
-                data = {"submission": "flag", "challenge_id": challenge.id}
-                r = client.post("/api/v1/challenges/attempt", json=data)
-                assert r.status_code == 200
+        for day, user in enumerate(["user1", "user2", "user3", "user4", "user5"], start=10):
+            with freeze_time("2020-10-%02d 12:34:56" % day):
+                client = login_as_user(app, name=user, password="password")
+                with client.session_transaction():
+                    data = {"submission": "flag", "challenge_id": challenge.id}
+                    r = client.post("/api/v1/challenges/attempt", json=data)
+                    assert r.status_code == 200
         
         expected_data = [
             {"user": "user1", "solved": True, "bonus_points": 30, "bonus_num": 1, "bonus_name": "1st"},
@@ -496,12 +502,13 @@ def test_awards_recalculated_on_user_removed():
         assert challenge.first_blood_bonus[1] == 20
         assert challenge.first_blood_bonus[2] == 10
         
-        for user in ["user1", "user2", "user3", "user4", "user5"]:
-            client = login_as_user(app, name=user, password="password")
-            with client.session_transaction():
-                data = {"submission": "flag", "challenge_id": challenge.id}
-                r = client.post("/api/v1/challenges/attempt", json=data)
-                assert r.status_code == 200
+        for day, user in enumerate(["user1", "user2", "user3", "user4", "user5"], start=10):
+            with freeze_time("2020-10-%02d 12:34:56" % day):
+                client = login_as_user(app, name=user, password="password")
+                with client.session_transaction():
+                    data = {"submission": "flag", "challenge_id": challenge.id}
+                    r = client.post("/api/v1/challenges/attempt", json=data)
+                    assert r.status_code == 200
         
         expected_data = [
             {"user": "user1", "solved": True, "bonus_points": 30, "bonus_num": 1, "bonus_name": "1st"},
@@ -567,12 +574,13 @@ def test_awards_recalculated_on_challenge_edited():
         assert challenge.first_blood_bonus[1] == 20
         assert challenge.first_blood_bonus[2] == 10
         
-        for user in ["user1", "user2", "user3", "user4", "user5"]:
-            client = login_as_user(app, name=user, password="password")
-            with client.session_transaction():
-                data = {"submission": "flag", "challenge_id": challenge.id}
-                r = client.post("/api/v1/challenges/attempt", json=data)
-                assert r.status_code == 200
+        for day, user in enumerate(["user1", "user2", "user3", "user4", "user5"], start=10):
+            with freeze_time("2020-10-%02d 12:34:56" % day):
+                client = login_as_user(app, name=user, password="password")
+                with client.session_transaction():
+                    data = {"submission": "flag", "challenge_id": challenge.id}
+                    r = client.post("/api/v1/challenges/attempt", json=data)
+                    assert r.status_code == 200
         
         expected_data = [
             {"user": "user1", "solved": True, "bonus_points": 30, "bonus_num": 1, "bonus_name": "1st"},

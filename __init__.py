@@ -113,6 +113,7 @@ class FirstBloodValueChallenge(BaseChallenge):
             'name': '{0} blood for {1}'.format(ordinalize(solve_num), challenge.name),
             'description': 'Bonus points for being the {0} to solve the challenge'.format(ordinalize(solve_num)),
             'category': 'First Blood',
+            'date': solve.date,
             'value': award_points,
             'solve_id': solve.id,
             'solve_num': solve_num,
