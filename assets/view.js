@@ -51,6 +51,10 @@ CTFd._internal.challenge.postRender = function () {
               let text = '<b>' + ordinalize(i + 1) + '</b>';
               if (first_blood_bonus[i])
                   text += ' (+' + first_blood_bonus[i] + ')';
+              if (i < 3)
+                  text = '<span class="award-icon award-medal-' + ordinalize(i+1) + '"></span>' + text;
+              else
+                  text = '<span class="award-icon award-medal"></span>' + text;
               td1.html(text);
           }
           tr.append(td1);

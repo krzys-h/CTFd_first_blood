@@ -10,6 +10,7 @@ from CTFd.plugins import register_plugin_assets_directory
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
 from CTFd.utils.modes import get_model
 from CTFd.utils.humanize.numbers import ordinalize
+from CTFd.utils.plugins import register_stylesheet, register_admin_stylesheet
 
 
 class FirstBloodChallenge(Challenges):
@@ -157,6 +158,7 @@ class FirstBloodValueChallenge(BaseChallenge):
             'category': 'First Blood',
             'date': solve.date,
             'value': award_points,
+            'icon': 'medal-{0}'.format(ordinalize(solve_num)) if solve_num <= 3 else 'medal',
             'solve_id': solve.id,
             'solve_num': solve_num,
         }
@@ -299,3 +301,5 @@ def load(app):
     register_plugin_assets_directory(
         app, base_path="/plugins/CTFd_first_blood/assets/"
     )
+    register_stylesheet("/plugins/CTFd_first_blood/assets/award-icons.css")
+    register_admin_stylesheet("/plugins/CTFd_first_blood/assets/award-icons.css")

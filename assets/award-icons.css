@@ -1,0 +1,20 @@
+/* Additional award icons for first blood awards */
+
+.award-medal:before,
+.award-medal-1st:before,
+.award-medal-2nd:before,
+.award-medal-3rd:before {
+  content: "\f5a2";
+}
+
+.award-medal-1st:before {
+  color: #f9ad0e;
+}
+
+.award-medal-2nd:before {
+  color: #d1d7da;
+}
+
+.award-medal-3rd:before {
+  color: #df7e08;
+}
