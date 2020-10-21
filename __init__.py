@@ -206,6 +206,7 @@ class FirstBloodValueChallenge(BaseChallenge):
         solves = (
             Solves.query.join(Model, Solves.account_id == Model.id)
             .filter(Solves.challenge_id == challenge.id)
+            .order_by(Solves.id)
             .all()
         )
 
