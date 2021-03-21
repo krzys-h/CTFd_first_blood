@@ -40,9 +40,9 @@ CTFd._internal.challenge.postRender = function () {
         for (let i = 0; i < data.length; i++) {
           const id = data[i].account_id;
           const name = data[i].name;
-          const date = Moment(data[i].date)
-            .local()
-            .fromNow();
+          const date = typeof dayjs !== 'undefined'
+            ? dayjs(data[i].date).fromNow() // CTFd >=3.2.0
+            : Moment(data[i].date).local().fromNow(); // CTFd <3.2.0
           const account_url = data[i].account_url;
           
           const tr = $('<tr>');
@@ -69,7 +69,7 @@ CTFd._internal.challenge.postRender = function () {
           tr.append(td3);
           box.append(tr);
         }
-      });
+      }).catch(e => console.error(e));
     }
 
     $(".challenge-solves").off("click");
