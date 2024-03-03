@@ -126,8 +126,10 @@ class FirstBloodValueChallenge(BaseChallenge):
         :return:
         """
         solve_ids = Solves.query.with_entities(Solves.id).filter_by(challenge_id=challenge.id).subquery()
-        award_ids = FirstBloodAward.query.with_entities(FirstBloodAward.id).filter(FirstBloodAward.solve_id.in_(solve_ids)).subquery()
-        Awards.query.filter(Awards.id.in_(award_ids)).delete(synchronize_session='fetch')
+        first_blood_awards = FirstBloodAward.query.filter(FirstBloodAward.solve_id.in_(solve_ids)).all()
+        for award in first_blood_awards:
+            db.session.delete(award)
+        db.session.commit()
         super().delete(challenge)
     
     @classmethod
@@ -236,14 +238,9 @@ class FirstBloodValueChallenge(BaseChallenge):
 
 @event.listens_for(Session, "after_bulk_delete")
 def after_bulk_delete(delete_context):
-    if delete_context.primary_table.name == "solves":
-        # A batch delete of solves just occured
-        # This usually means that CTFd is removing a user account
-        # Why do they do this differently for users and teams? No idea ¯\_(ツ)_/¯
-        
-        # Mark ALL first blood challenges for recalculation
-        # TODO: It would probably be better to detect which solves got removed and which challenges are affected - but before_bulk_delete doesn't seem to be a thing and the rows are already removed by now
-        for challenge in Challenges.query.filter_by(type="firstblood").all():
+    if 'solves' in str(delete_context.query):
+        challenges = Challenges.query.filter_by(type="firstblood").all()
+        for challenge in challenges:
             FirstBloodValueChallenge.recalculate_awards(challenge)
 
 @event.listens_for(Session, "before_flush")
